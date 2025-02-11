@@ -1,73 +1,120 @@
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const express = require('express');
 const cors = require('cors');
 const app = express();
-require('dotenv').config()
+require('dotenv').config();
 
 const port = process.env.PORT || 3000;
 
-
-app.use(cors())
+app.use(cors());
 app.use(express.json());
-
-
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.bumjh.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
     strict: true,
-
     deprecationErrors: true,
   }
 });
 
 async function run() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
-    // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } finally {
-    // Ensures that the client will close when you finish/error
-    // await client.close();
+    // Optionally close the connection if desired
   }
 }
 run().catch(console.dir);
 
-const submitAssignmentCollection = client.db('Online-Assignment').collection('Assignment')
-const createAssignmentCollection = client.db('Online-Assignment').collection('create_assignment')
+const submitAssignmentCollection = client.db('Online-Assignment').collection('Assignment');
+const createAssignmentCollection = client.db('Online-Assignment').collection('create_assignment');
 
-app.get('/submitAssignment',async (req , res)=> {
-  const cursor =  submitAssignmentCollection.find();
-  const result = await cursor.toArray();
-  res.send(result);
-})
-app.post('/create-assignment', async (req,res) => {
-
-    const application = req.body;
- const result = await createAssignmentCollection.insertOne(application)
-res.send(result)
-})
-
-app.put("/updateAssignment/:id", async (req, res) => {
-  const { id } = req.params;
-  const { obtainedMarks, feedback, status } = req.body;
-
+// GET all assignments
+app.get("/assignments", async (req, res) => {
   try {
-    await Assignment.findByIdAndUpdate(id, { obtainedMarks, feedback, status });
-    res.json({ message: "Assignment updated successfully!" });
+    const assignments = await createAssignmentCollection.find().toArray();
+    res.json(assignments);
   } catch (error) {
-    res.status(500).json({ error: "Error updating assignment" });
+    res.status(500).json({ error: "Error fetching assignments" });
   }
 });
 
+// GET a single assignment by ID
+app.get("/assignments/:id", async (req, res) => {
+  const assignmentId = req.params.id;
+  if (!ObjectId.isValid(assignmentId)) {
+    return res.status(400).json({ success: false, message: "Invalid assignment ID" });
+  }
+  try {
+    const assignment = await createAssignmentCollection.findOne({ _id: new ObjectId(assignmentId) });
+    if (!assignment) {
+      return res.status(404).json({ success: false, message: "Assignment not found" });
+    }
+    res.json(assignment);
+  } catch (error) {
+    console.error("Error fetching assignment:", error);
+    res.status(500).json({ success: false, message: "Error fetching assignment", error });
+  }
+});
+
+// POST to create an assignment
+app.post('/create-assignment', async (req, res) => {
+  const application = req.body;
+  try {
+    const result = await createAssignmentCollection.insertOne(application);
+    res.status(201).json({ success: true, assignmentId: result.insertedId });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Error creating assignment", error });
+  }
+});
+
+// DELETE an assignment
+app.delete("/assignments/:id", async (req, res) => {
+  const assignmentId = req.params.id;
+  const userEmail = req.query.email;
+  try {
+    const assignment = await createAssignmentCollection.findOne({ _id: new ObjectId(assignmentId) });
+    if (!assignment) {
+      return res.status(404).json({ success: false, message: "Assignment not found" });
+    }
+    if (assignment.createdBy.email !== userEmail) {
+      return res.status(403).json({ success: false, message: "Unauthorized: You can only delete your own assignments" });
+    }
+    await createAssignmentCollection.deleteOne({ _id: new ObjectId(assignmentId) });
+    res.status(200).json({ success: true, message: "Assignment deleted successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server Error", error });
+  }
+});
+
+// PUT to update an assignment
+app.put("/updateAssignment/:id", async (req, res) => {
+  const { id } = req.params;
+  const { title, marks, thumbnail, difficulty } = req.body;
+  const userEmail = req.query.email;
+  try {
+    const assignment = await createAssignmentCollection.findOne({ _id: new ObjectId(id) });
+    if (!assignment) {
+      return res.status(404).json({ success: false, message: "Assignment not found" });
+    }
+    if (assignment.createdBy.email !== userEmail) {
+      return res.status(403).json({ success: false, message: "You can only update your own assignments" });
+    }
+    await createAssignmentCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { title, marks, thumbnail, difficulty } }
+    );
+    res.status(200).json({ success: true, message: "Assignment updated successfully" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Error updating assignment", error });
+  }
+});
 
 app.listen(port, () => {
-
-    console.log(`job is waiting at:${port}`);
-    
-})
+  console.log(`Server is running at http://localhost:${port}`);
+});
