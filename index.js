@@ -115,6 +115,30 @@ app.put("/updateAssignment/:id", async (req, res) => {
   }
 });
 
+// POST Method for submitting an assignment (submission)
+app.post("/submit-assignment", async (req, res) => {
+  const submissionData = req.body;
+
+  // Validate required fields
+  if (!submissionData.assignmentId || !submissionData.docsLink || !submissionData.submittedBy?.email) {
+    return res.status(400).json({ success: false, message: "Missing required fields" });
+  }
+
+  // Set default status if not provided
+  submissionData.status = "pending";
+
+  try {
+    // Create or use a separate collection for submissions
+    const submissionsCollection = client.db('Online-Assignment').collection('assignment_submissions');
+    const result = await submissionsCollection.insertOne(submissionData);
+    res.status(201).json({ success: true, submissionId: result.insertedId });
+  } catch (error) {
+    console.error("Error submitting assignment:", error);
+    res.status(500).json({ success: false, message: "Error submitting assignment", error });
+  }
+});
+
+
 app.listen(port, () => {
   console.log(`Server is running at http://localhost:${port}`);
 });
