@@ -21,16 +21,7 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    await client.connect();
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
-  } finally {
-    // Optionally close the connection if desired
-  }
-}
-run().catch(console.dir);
-
-const submitAssignmentCollection = client.db('Online-Assignment').collection('Assignment');
+    const submitAssignmentCollection = client.db('Online-Assignment').collection('Assignment');
 const createAssignmentCollection = client.db('Online-Assignment').collection('create_assignment');
 
 // GET all assignments
@@ -137,6 +128,16 @@ app.post("/submit-assignment", async (req, res) => {
     res.status(500).json({ success: false, message: "Error submitting assignment", error });
   }
 });
+
+
+    // await client.connect();
+    // await client.db("admin").command({ ping: 1 });
+    // console.log("Pinged your deployment. You successfully connected to MongoDB!");
+  } finally {
+    // Optionally close the connection if desired
+  }
+}
+run().catch(console.dir);
 
 
 app.listen(port, () => {
